@@ -309,4 +309,79 @@ Removed /etc/systemd/system/multi-user.target.wants/apache2.service.
 И установим nginx:
 catware@srvubuntu:~/hello_world_devops$ sudo apt install nginx
 Создадим простой конфигурационный файл который позволит nginx принимать входящие соединения и пробрасывать их на uwsgi 
-
+Переходим в /etc/nginx/sites-enabled
+catware@srvubuntu:~/hello_world_devops$ cd /etc/nginx/sites-enabled
+Удаляем файлы конфигурации по умолчанию:
+catware@srvubuntu:/etc/nginx/sites-enabled$ ls -la
+total 8
+drwxr-xr-x 2 root root 4096 мар 17 16:30 .
+drwxr-xr-x 8 root root 4096 мар 17 16:30 ..
+lrwxrwxrwx 1 root root   34 мар 17 16:30 default -> /etc/nginx/sites-available/default
+catware@srvubuntu:/etc/nginx/sites-enabled$ sudo rm -rf default
+catware@srvubuntu:/etc/nginx/sites-enabled$ ls -la
+total 8
+drwxr-xr-x 2 root root 4096 мар 17 17:49 .
+drwxr-xr-x 8 root root 4096 мар 17 16:30 ..
+catware@srvubuntu:/etc/nginx/sites-enabled$ cd ../sites-enabled/
+Создаем конфигурационный файл под название hello.conf со следующим содержимым:
+catware@srvubuntu:/etc/nginx/sites-enabled$ sudo nano hello.conf
+server {
+  listen 80;
+  root /var/www/html;
+  location / {
+    include /etc/nginx/uwsgi_params;
+    uwsgi_pass 127.0.0.1:9000;
+    uwsgi_param Host $host;
+    uwsgi_param X-Real-IP $remote_addr;
+    uwsgi_param X-Forwarded-For $proxy_add_x_forwarded_for;
+    uwsgi_param X-Forwarded-Proto $http_x_forwarded_proto;
+  }
+}
+listen 80 - прошу слушать сервер на 80ом порту
+root /var/www/html - использовать в качестве корневой директории
+location / - при обращении к корневой директории, я прошу пробрасывать траффик сервера на uwsgi_pass 127.0.0.1:9000 и не просто пробрасывать, а пробрасывать в формате
+uwsgi. Там его будет ждать демон uwsgi, будет принимать соединение и отдавать результат своей работы.
+https://prnt.sc/M-gsK7b70cuw
+Файл сделан в папке /etc/nginx/sites-enabled, это не совсем правильно. Перемещаем и удаляем default файлы конфигурации из /etc/nginx/sites-available, а в 
+/etc/nginx/sites-enabled делаем симлинк:
+catware@srvubuntu:/etc/nginx/sites-enabled$ sudo mv hello.conf ../sites-available
+catware@srvubuntu:/etc/nginx/sites-enabled$ sudo ln -s ../sites-available/hello.conf .
+catware@srvubuntu:/etc/nginx/sites-enabled$ ls -la
+total 8
+drwxr-xr-x 2 root root 4096 мар 17 18:14 .
+drwxr-xr-x 8 root root 4096 мар 17 16:30 ..
+lrwxrwxrwx 1 root root   29 мар 17 18:14 hello.conf -> ../sites-available/hello.conf
+catware@srvubuntu:/etc/nginx/sites-available$ sudo rm -rf default
+catware@srvubuntu:/etc/nginx/sites-available$ ls -la
+total 12
+drwxr-xr-x 2 root root 4096 мар 17 18:11 .
+drwxr-xr-x 8 root root 4096 мар 17 16:30 ..
+-rw-r--r-- 1 root root  319 мар 17 18:05 hello.conf
+Перезапускаем nginx:
+catware@srvubuntu:/etc/nginx/sites-enabled$ sudo systemctl restart nginx
+Если ругается смотрим ошибки в hello.conf или через sudo netstat -plant | grep 80 кто еще прослушивает порт 80, если слушает апач, стопаем апач через
+sudo systemctl stop apache2 и снова перезапускаем nginx.
+catware@srvubuntu:/etc/nginx/sites-enabled$ sudo systemctl restart nginx
+В браузере получаем 502 т.к. не запущен uwsgi.
+https://prnt.sc/Y0fVEcGz6KOn
+Переходим в директорию с приложением:
+catware@srvubuntu:/etc/nginx/sites-enabled$ cd
+catware@srvubuntu:~$ cd hello_world_devops
+Настройки которые были для девелопмента теперь не подходят так как до этого эти настройки делались для локального веб-сервера, а веб-сервер уже есть.
+Копируем настройки dev.ini в настройки прода prod.ini
+catware@srvubuntu:~/hello_world_devops$ cp dev.ini prod.ini
+И редактируем настройки prod.ini:
+[uwsgi]
+plugin=python3
+socket=127.0.0.1:9000
+wsgi-file=app.py
+https://prnt.sc/yzfKaoxHSXdo
+catware@srvubuntu:~/hello_world_devops$ sudo nano prod.ini
+И запускаем uwsgi с настройками прода:
+catware@srvubuntu:~/hello_world_devops$ uwsgi prod.ini
+https://prnt.sc/ojFIbh9oCmj0
+Все работает!
+По итогу получили nginx обрабатывает много запросов, uWSGI умеет вести себя как надо в нужное количество ресурсов!
+Появился первый артефакт - конфиг nginx, которая лежит не у нас в проекте, а лежит внутри директорий с nginx.
+## Далее нас ждет деплой, предстоит писать не просто код, а инфраструктурный код. То есть код который умеет выкатывать наше приложение.
+А также необходимо где-то хранить инфраструктурный код - пока будем хранить код вместе с кодом приложения. (Тут есть свои плюсы и минусы).
