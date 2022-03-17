@@ -71,5 +71,75 @@ Writing objects: 100% (3/3), 405 bytes | 405.00 KiB/s, done.
 Total 3 (delta 0), reused 0 (delta 0)
 To https://github.com/summerinstockholm/hello_world_devops.git
    52c11a5..feaad7e  master -> master
+## Мы же делаем веб-приложение! Теперь нужно чтобы приложение исполнялось в браузере. Пойдет от старого к самому новому.
+Сначала сделаем исполнение нашего приложения как CGI скрипта веб-сервером Apache. Установим Apache:
+catware@srvubuntu:~/hello_world_devops$ sudo apt install apache2
+Установится apache. Apache ожидает что он будет сбрасывать файлы которые у него будут в определенную директорию. Она называется /var/www/html
+Там пока ничего нет:
+catware@srvubuntu:~/hello_world_devops$ ls -la /var/www/html
+total 20
+drwxr-xr-x 2 root root  4096 мар 17 12:37 .
+drwxr-xr-x 3 root root  4096 мар 17 12:37 ..
+-rw-r--r-- 1 root root 10918 мар 17 12:37 index.html
+Но проверить что все взлетело можно открыв в браузере IP адрес виртуальной машины:
+https://prnt.sc/MSA7yTVkkyeA
+Идем в /var/www и перенесем директорию html в html2:
+catware@srvubuntu:~/hello_world_devops$ cd /var/www
+catware@srvubuntu:/var/www$ ls -la
+total 12
+drwxr-xr-x  3 root root 4096 мар 17 12:37 .
+drwxr-xr-x 14 root root 4096 мар 17 12:37 ..
+drwxr-xr-x  2 root root 4096 мар 17 12:37 html
+catware@srvubuntu:/var/www$ sudo mv html html2
+catware@srvubuntu:/var/www$ ls -la
+total 12
+drwxr-xr-x  3 root root 4096 мар 17 12:47 .
+drwxr-xr-x 14 root root 4096 мар 17 12:37 ..
+drwxr-xr-x  2 root root 4096 мар 17 12:37 html2
+Направим директорию html на домашнюю директорию где лежит веб-приложение:
+catware@srvubuntu:/var/www$ sudo ln -s ~/hello_world_devops html
+catware@srvubuntu:/var/www$ ls -la
+total 12
+drwxr-xr-x  3 root root 4096 мар 17 12:50 .
+drwxr-xr-x 14 root root 4096 мар 17 12:37 ..
+lrwxrwxrwx  1 root root   32 мар 17 12:50 html -> /home/catware/hello_world_devops
+drwxr-xr-x  2 root root 4096 мар 17 12:37 html2
+То есть теперь апач по симлинку будет бежать в домашний каталог в папку где лежит приложение.
+Но просто так конечно апач ничего не будет запускать.
+Нужно включить модуль отвечающий за выполнение внешних скриптов модуль апача:
+catware@srvubuntu:/var/www$ sudo a2enmod cgi
+Your MPM seems to be threaded. Selecting cgid instead of cgi.
+Enabling module cgid.
+To activate the new configuration, you need to run:
+  systemctl restart apache2
+Но не спешим перезапускать апач, потому что нужно добавить возможность переопределять настройки апача путем создания файлов в моей директории с проектами:
+catware@srvubuntu:/var/www$ sudo nano /etc/apache2/sites-enabled/000-default.conf
+После строчки DocumentRoot /var/www/html вставляем следующую конструкцию:
+<Directory /var/www/html>
+    AllowOverride All
+</Directory>
+https://prnt.sc/Wr3GEOpXS_S1
+Сохраняем и перезапускаем апач:
+catware@srvubuntu:/var/www$ sudo systemctl restart apache2
+Делаем специальный файл .htaccess в директории с веб приложением:
+catware@srvubuntu:/var/www$ cd ~/hello_world_devops
+catware@srvubuntu:~/hello_world_devops$ sudo nano .htaccess
+Который позволит переопределять настройки апача налету.
+Добавляем в него следующие строки:
+AddHandler cgi-script .py
+Options +ExecCGI
+DirectoryIndex app.py
+Перевод:
+AddHandler cgi-script .py - если видишь файл с расширением .py это cgi скрипт и его надо исполнить
+Options +ExecCGI - разрешаю выполнение скриптов в этой директории
+DirectoryIndex app.py - если не сказано иное, в качестве индекса нужно выбирать файл app.py
+https://prnt.sc/an_FyilTV8NO
+В адресной строке браузера получаем:
+https://prnt.sc/MlGTLi4OuLpP
+Для исправления этой проблемы необходимо отредактировать файл app.py, вставив в него строчку:
+print("Content-type: text/html\n\n") после if __name__ == "__main__":
+https://prnt.sc/rXmWmSxjP7Li
+Сохранеяем файл, обновляем страницу в браузере получаем:
+https://prnt.sc/0U7iLquvlfdQ
 
 
