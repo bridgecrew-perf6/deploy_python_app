@@ -1,0 +1,63 @@
+## Дано:
+Stateless Веб-приложение на Python3 из одного py файла с простым кодом, которое выводит текущую дату:<br>
+#!/usr/bin/env python3
+import datetime
+def do_magic():
+    now = datetime.datetime.now()
+    return "Hello! {0}".format(now)
+if __name__ == "__main__":
+    print(do_magic())
+https://github.com/summerinstockholm/hello_world_devops
+Ubuntu Server установленный на виртуальную машину VMWare со статическим IP:
+catware@srvubuntu:\~$ lsb_release -a
+No LSB modules are available.
+Distributor ID: Ubuntu
+Description:    Ubuntu 20.04.4 LTS
+Release:        20.04
+Codename:       focal
+**Ко всему этому попытаюсь применить DevOps практики на самом базовом и начальном уровне.**
+## Проверим версию git и python, пропишем глобальные настройки для гита (email, username), выполним клонирование репозитория с кодом, а затем добавим URL
+адрес удаленного репозитория с кредами (username/github access token).
+catware@srvubuntu:~$ git --version
+git version 2.25.1
+catware@srvubuntu:~$ python3 --version
+Python 3.8.10
+Объясняем гиту кто я такой:
+catware@srvubuntu:~$ git config --global user.email "ammirosat@yandex.ru"
+catware@srvubuntu:~$ git config --global user.name "Vladimir Poroshkov"
+catware@srvubuntu:~$ git config --global -l
+user.email=ammirosat@yandex.ru
+user.name=Vladimir Poroshkov
+Клонируем репозиторий:
+catware@srvubuntu:~$ git clone https://github.com/summerinstockholm/hello_world_devops.git
+Cloning into 'hello_world_devops'...
+remote: Enumerating objects: 23, done.
+remote: Counting objects: 100% (23/23), done.
+remote: Compressing objects: 100% (18/18), done.
+remote: Total 23 (delta 5), reused 21 (delta 3), pack-reused 0
+Unpacking objects: 100% (23/23), 4.20 KiB | 91.00 KiB/s, done.
+Добавляем url адрес удаленного репозитория:
+catware@srvubuntu:~/hello_world_devops$ git remote set-url origin https://summerinstockholm:<GITHUBACCESSTOKEN>@github.com/summerinstockholm/hello_world_devops.git
+## Выдадим права на исполнение для app.py (чтобы иметь возможность проверять локально перед его выкаткой), запустим приложение, потом отредактируем файл README, 
+закоммитим и запушим в ветку мастер удаленного репозитория где хранится приложение:
+Смотрим права app.py:
+catware@srvubuntu:~/hello_world_devops$ ls -la app.py
+-rw-rw-r-- 1 catware catware 442 мар 17 12:02 app.py
+Выдаем права на исполнение:
+catware@srvubuntu:~/hello_world_devops$ chmod +x app.py
+catware@srvubuntu:~/hello_world_devops$ ls -la app.py
+-rwxrwxr-x 1 catware catware  442 мар 17 12:02 app.py
+Запускаем приложение:
+catware@srvubuntu:~/hello_world_devops$ ./app.py
+Hello! 2022-03-17 12:16:29.604861
+Приложение работает!
+Отредактируем файл README вставив в них ссылки на этот репозиторий и репозиторий с кодом:
+catware@srvubuntu:~/hello_world_devops$ sudo nano README
+https://github.com/summerinstockholm/deploy_python_app/
+https://github.com/summerinstockholm/hello_world_devops
+Ctr+O, Ctr+X.
+
+
+
+
+
