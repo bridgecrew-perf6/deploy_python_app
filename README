@@ -222,5 +222,91 @@ Total 7 (delta 3), reused 0 (delta 0)
 remote: Resolving deltas: 100% (3/3), completed with 2 local objects.
 To https://github.com/summerinstockholm/hello_world_devops.git
    feaad7e..caa7e40  master -> master
+## А что собственно дальше? А дальше попробуем WSGI (whiskey). CGI - прошлый век, на каждый запрос свой процесс.
+В качестве софтовой реализации будем использовать uWSGI.
+Создадим отдельную ветку.
+catware@srvubuntu:~/hello_world_devops$ git checkout -b uwsgi
+Switched to a new branch 'uwsgi'
+catware@srvubuntu:~/hello_world_devops$ git status
+On branch uwsgi
+nothing to commit, working tree clean
+Для совместимости app.py с стандартном whiskey необходимо изменить приложение:
+#!/usr/bin/env python3
+import datetime
+import os
+def do_magic():
+    now = datetime.datetime.now()
+    return "Hello! {0}".format(now)
+def application(env, start_response):
+    start_response('200 OK', [('Content-Type', 'text/html')])
+    return [do_magic().encode()]
+if __name__ == "__main__":
+    if 'REQUEST_URI' in os.environ:
+        print("Content-type: text/html\n\n")
+    print(do_magic())
+Функция application описана в стандарте, uwsgi дернет имеено ее когда его попросят запустит app.py.
+https://prnt.sc/aKnXaXGYS0RE
+Коммитим изменненый файл app.py в ветку uwsgi:
+catware@srvubuntu:~/hello_world_devops$ git status
+On branch uwsgi
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+        modified:   app.py
 
+no changes added to commit (use "git add" and/or "git commit -a")
+catware@srvubuntu:~/hello_world_devops$ git add app.py
+catware@srvubuntu:~/hello_world_devops$ git commit -m "uwsgi version"
+[uwsgi 9b3615e] uwsgi version
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+## Установим uwsgi и проверим установку:
+catware@srvubuntu:~/hello_world_devops$ sudo apt install uwsgi-plugin-python3 
+Проверим установку
+catware@srvubuntu:~$ uwsgi
+*** Starting uWSGI 2.0.18-debian (64bit) on [Thu Mar 17 15:54:27 2022] ***
+compiled with version: 10.0.1 20200405 (experimental) [master revision 0be9efad938:fcb98e4978a:705510a708d3642c9c962beb663c476167e4e8a4] on 11 April 2020 11:15:55
+os: Linux-5.4.0-104-generic #118-Ubuntu SMP Wed Mar 2 19:02:41 UTC 2022
+nodename: srvubuntu
+machine: x86_64
+clock source: unix
+pcre jit disabled
+detected number of CPU cores: 2
+current working directory: /home/catware
+detected binary path: /usr/bin/uwsgi-core
+*** WARNING: you are running uWSGI without its master process manager ***
+your processes number limit is 15252
+your memory page size is 4096 bytes
+detected max file descriptor number: 1024
+lock engine: pthread robust mutexes
+thunder lock: disabled (you can enable it with --thunder-lock)
+The -s/--socket option is missing and stdin is not a socket.
+Запускаем веб-приложение через uwsgi:
+catware@srvubuntu:~/hello_world_devops$ uwsgi --plugin python3 --http-socket :9090 --wsgi-file app.py
+Т.е. запускаем демон uwsgi, прошу подгрузить плагин для python3, прошу запустить веб-сервер на порту 9090 и прошу использовать файл app.py в качестве стартового.
+Приложение запуститься на порту 9090
+https://prnt.sc/6dDzDVgjGqFx
+Однако каждый раз печатать строку uwsgi --plugin python3 --http-socket :9090 --wsgi-file app.py очень утомительно и долго. Воспользуемся возможностью uwsgi тащить
+данные из файла. Для этого в каталоге с проектом создадим файл dev.ini со следующими параметрами:
+[uwsgi]
+plugin=python3
+http-socket=:9090
+wsgi-file=app.py
+https://prnt.sc/Iu9j1CFFdDkL
+catware@srvubuntu:~/hello_world_devops$ sudo nano dev.ini
+Сохраняем. Теперь можно запустить uwsgi вот так:
+catware@srvubuntu:~/hello_world_devops$ uwsgi dev.ini
+https://prnt.sc/imIflFr2K6PU
+Добавим изменненый файл app.py и новый файл dev.ini в коммит, теперь их можно влить в основную ветку.
+catware@srvubuntu:~/hello_world_devops$ git add app.py
+catware@srvubuntu:~/hello_world_devops$ git add dev.ini
+## Что дальше? uwsgi не круто, так как он не производительный. Будем использовать nginx.
+С чего начать?
+Выключим apache:
+catware@srvubuntu:~/hello_world_devops$ sudo systemctl disable apache2
+Synchronizing state of apache2.service with SysV service script with /lib/systemd/systemd-sysv-install.
+Executing: /lib/systemd/systemd-sysv-install disable apache2
+Removed /etc/systemd/system/multi-user.target.wants/apache2.service.
+И установим nginx:
+catware@srvubuntu:~/hello_world_devops$ sudo apt install nginx
+Создадим простой конфигурационный файл который позволит nginx принимать входящие соединения и пробрасывать их на uwsgi 
 
