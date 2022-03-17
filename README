@@ -141,5 +141,86 @@ print("Content-type: text/html\n\n") после if __name__ == "__main__":
 https://prnt.sc/rXmWmSxjP7Li
 Сохранеяем файл, обновляем страницу в браузере получаем:
 https://prnt.sc/0U7iLquvlfdQ
+## Коммитим и изменения. Но добавляем в коммит только изменения app.py.
+catware@srvubuntu:~/hello_world_devops$ git status
+On branch master
+Your branch is up to date with 'origin/master'.
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+        modified:   app.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+        .htaccess
+
+no changes added to commit (use "git add" and/or "git commit -a")
+catware@srvubuntu:~/hello_world_devops$ git add app.py
+catware@srvubuntu:~/hello_world_devops$ git commit -m 'cgi version'
+[master db0be86] cgi version
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+## Нужна универсальность. Ведь если исполнять app.py в командной строке то будет мешать Content-type: text/html\n\n
+catware@srvubuntu:~/hello_world_devops$ ./app.py
+Content-type: text/html
+Hello! 2022-03-17 13:21:55.804539
+
+Для этого необходимо отредактировать app.py.
+Сначала добавить модуль который позволяет взаимодействовать с операционной системой:
+import os
+а перед print(do_magic()) необходимо вывести переменный среды которые есть в ОС через функцию print(os.environ), в итоге app.py должен принять вид:
+catware@srvubuntu:~/hello_world_devops$ sudo nano app.py
+#!/usr/bin/env python3
+import datetime
+import os
+def do_magic():
+    now = datetime.datetime.now()
+    return "Hello! {0}".format(now)
+if __name__ == "__main__":
+    print("Content-type: text/html\n\n")
+    print(os.environ)
+    print(do_magic())
+https://prnt.sc/VAELOUi_l1MA
+В итоге в браузере получаем огромное количество переменных среды:
+https://prnt.sc/k4wNuXCl1hNL
+Так же получается если запускать локально:
+https://prnt.sc/cj9zPTTeUhyz
+Важно понимать что есть переменные которые отображаются если их вызывает веб-сервер apache, например Request_URI.
+Тогда можно модифицировать код через условную конструкцию:
+#!/usr/bin/env python3
+import datetime
+import os
+def do_magic():
+    now = datetime.datetime.now()
+    return "Hello! {0}".format(now)
+if __name__ == "__main__":
+    if 'REQUEST_URI' in os.environ: # В том случае если app.py вызывают через apache то добавляется
+        print("Content-type: text/html\n\n")
+    print(do_magic())
+Т.е. в том случае если app.py вызывают через apache то добавляется то добавляется print("Content-type: text/html\n\n"), а если нет, то не показываем 
+Content-type: text/html\n\n.
+https://prnt.sc/x2cLIi8HXt9M
+Проверяем что работает локально:
+catware@srvubuntu:~/hello_world_devops$ ./app.py
+Hello! 2022-03-17 13:34:45.483794
+Проверяем что работает в браузере:
+https://prnt.sc/dYj98dc5JZ5m
+## Коммитим, помечаем получившееся как определенную версию и пушим в мастер .htaccess и app.py
+catware@srvubuntu:~/hello_world_devops$ git add .
+catware@srvubuntu:~/hello_world_devops$ git commit -m "apache2 cgi version"
+[master caa7e40] apache2 cgi version
+ 2 files changed, 6 insertions(+), 1 deletion(-)
+ create mode 100644 .htaccess
+ catware@srvubuntu:~/hello_world_devops$ git tag v1.0
+catware@srvubuntu:~/hello_world_devops$ git push origin master
+Enumerating objects: 9, done.
+Counting objects: 100% (9/9), done.
+Delta compression using up to 2 threads
+Compressing objects: 100% (7/7), done.
+Writing objects: 100% (7/7), 799 bytes | 399.00 KiB/s, done.
+Total 7 (delta 3), reused 0 (delta 0)
+remote: Resolving deltas: 100% (3/3), completed with 2 local objects.
+To https://github.com/summerinstockholm/hello_world_devops.git
+   feaad7e..caa7e40  master -> master
 
 
