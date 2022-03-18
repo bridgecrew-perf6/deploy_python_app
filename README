@@ -385,3 +385,164 @@ https://prnt.sc/ojFIbh9oCmj0
 Появился первый артефакт - конфиг nginx, которая лежит не у нас в проекте, а лежит внутри директорий с nginx.
 ## Далее нас ждет деплой, предстоит писать не просто код, а инфраструктурный код. То есть код который умеет выкатывать наше приложение.
 А также необходимо где-то хранить инфраструктурный код - пока будем хранить код вместе с кодом приложения. (Тут есть свои плюсы и минусы).
+Сначала создадим специальную папку deploy c разными поддиректориями apache2, uwsgi, nginx, systemd. 
+catware@srvubuntu:~/hello_world_devops$ mkdir -p deploy/{apache2,uwsgi,nginx,systemd}
+Удалим index.nginx-debian.html
+catware@srvubuntu:~/hello_world_devops$ sudo rm index.nginx-debian.html
+Отправим .htaccess в deploy/apache2
+catware@srvubuntu:~/hello_world_devops$ mv .htaccess deploy/apache2/
+Все ini файлы отправим в deploy/uwsgi:
+catware@srvubuntu:~/hello_world_devops$ mv *.ini deploy/uwsgi/
+Затем скопируем у nginx из /etc/nginx/sites-available наш hello.conf в deploy/nginx
+catware@srvubuntu:~/hello_world_devops$ cp /etc/nginx/sites-available/hello.conf deploy/nginx
+catware@srvubuntu:~/hello_world_devops$ ls -la
+total 28
+drwxrwxr-x 4 catware catware 4096 мар 18 07:51 .
+drwxr-xr-x 6 catware catware 4096 мар 17 12:02 ..
+-rwxrwxr-x 1 catware catware  681 мар 17 16:14 app.py
+drwxrwxr-x 6 catware catware 4096 мар 18 07:46 deploy
+drwxrwxr-x 8 catware catware 4096 мар 17 16:14 .git
+-rw-rw-r-- 1 catware catware 2761 мар 17 12:02 .gitignore
+-rw-rw-r-- 1 catware catware  112 мар 17 12:19 README
+Зафиксируем изменения
+catware@srvubuntu:~/hello_world_devops$ git add .
+catware@srvubuntu:~/hello_world_devops$ git commit -am 'prepare to deploy'
+[master f30b89e] prepare to deploy
+ 4 files changed, 16 insertions(+)
+ rename .htaccess => deploy/apache2/.htaccess (100%)
+ create mode 100644 deploy/nginx/hello.conf
+ rename dev.ini => deploy/uwsgi/dev.ini (100%)
+ create mode 100644 deploy/uwsgi/prod.ini
+catware@srvubuntu:~/hello_world_devops$ git push origin master
+Запушим теги в гит:
+catware@srvubuntu:~/hello_world_devops$ git tag
+v1.0
+catware@srvubuntu:~/hello_world_devops$ git push origin v1.0
+Нужно чтобы демон uwsgi автоматически запускался. Для этого поработаем с systemd. Для этого создадим unit файл в /etc/systemd/system/hello.service со
+следующим содержимым:
+catware@srvubuntu:~/hello_world_devops$ sudo nano /etc/systemd/system/hello.service
+[Unit]
+Description=Hello app
+Requires=network #Здесь описываем что для запуска юнита нужна сеть
+After=network.target
+
+[Service]
+TimeoutStartSec=0
+RestartSec=10
+Restart=always
+WorkingDirectory=/opt/hello_world_devops #Обратите внимание что рабочая директория создается внутри каталога /opt/
+KillSignal=SIGQUIT
+Type=notify
+NotifyAccess=all
+ExecStart=/usr/bin/uwsgi deploy/uwsgi/prod.ini 
+#Внутри директории /opt/hello_world_devops нужно запустить uwsgi, а ему необходимо передать параметр где находится ini файл
+
+[Install]
+WantedBy=multi-user.target
+https://prnt.sc/RyL4UfJOkvmH
+Сохраняем. Далее просим systemd перепрочитать изменения с диска чтобы он увидел новый сервис и его можно попробовать стартануть, но это не получится
+так как не подготовлена директория /opt/hello_word_devops, там ничего нет.
+catware@srvubuntu:~/hello_world_devops$ sudo systemctl daemon-reload
+catware@srvubuntu:~/hello_world_devops$ sudo systemctl start hello
+Job for hello.service failed because the control process exited with error code.
+See "systemctl status hello.service" and "journalctl -xe" for details.
+Идет в директорию /opt и становится суперпользователем:
+catware@srvubuntu:~/hello_world_devops$ cd /opt
+catware@srvubuntu:/opt$ sudo su
+И клонируем в эту папку наш репозиторий:
+root@srvubuntu:/opt# git clone https://github.com/summerinstockholm/hello_world_devops.git
+Cloning into 'hello_world_devops'...
+remote: Enumerating objects: 48, done.
+remote: Counting objects: 100% (48/48), done.
+remote: Compressing objects: 100% (35/35), done.
+remote: Total 48 (delta 14), reused 43 (delta 9), pack-reused 0
+Unpacking objects: 100% (48/48), 6.58 KiB | 177.00 KiB/s, done.
+root@srvubuntu:/opt# ls -la
+total 12
+drwxr-xr-x  3 root root 4096 мар 18 09:39 .
+drwxr-xr-x 19 root root 4096 мар 16 17:07 ..
+drwxr-xr-x  4 root root 4096 мар 18 09:39 hello_world_devops
+root@srvubuntu:/opt# ls -la hello_world_devops
+total 28
+drwxr-xr-x 4 root root 4096 мар 18 09:39 .
+drwxr-xr-x 3 root root 4096 мар 18 09:39 ..
+-rwxr-xr-x 1 root root  681 мар 18 09:39 app.py
+drwxr-xr-x 5 root root 4096 мар 18 09:39 deploy
+drwxr-xr-x 8 root root 4096 мар 18 09:39 .git
+-rw-r--r-- 1 root root 2761 мар 18 09:39 .gitignore
+-rw-r--r-- 1 root root  112 мар 18 09:39 README
+После этих маниипуляций демон под системд.
+Выходим из root'а и стартуем демон
+root@srvubuntu:/opt# exit
+exit
+catware@srvubuntu:/opt$ sudo systemctl start hello
+Посмотрим статус:
+catware@srvubuntu:/opt$ sudo systemctl status hello
+● hello.service - Hello app
+     Loaded: loaded (/etc/systemd/system/hello.service; disabled; vendor preset: enabled)
+     Active: active (running) since Fri 2022-03-18 09:39:39 UTC; 4min 2s ago
+   Main PID: 157607 (uwsgi)
+     Status: "uWSGI is ready"
+      Tasks: 1 (limit: 4575)
+     Memory: 9.4M
+     CGroup: /system.slice/hello.service
+             └─157607 /usr/bin/uwsgi deploy/uwsgi/prod.ini
+
+мар 18 09:39:39 srvubuntu uwsgi[157607]: your server socket listen backlog is limited to 100 connections
+мар 18 09:39:39 srvubuntu uwsgi[157607]: your mercy for graceful operations on workers is 60 seconds
+мар 18 09:39:39 srvubuntu uwsgi[157607]: mapped 72920 bytes (71 KB) for 1 cores
+мар 18 09:39:39 srvubuntu uwsgi[157607]: *** Operational MODE: single process ***
+мар 18 09:39:39 srvubuntu uwsgi[157607]: WSGI app 0 (mountpoint='') ready in 0 seconds on interpreter 0x559f1fdf8b20 pid: 157607 (default app)
+мар 18 09:39:39 srvubuntu uwsgi[157607]: uWSGI running as root, you can use --uid/--gid/--chroot options
+мар 18 09:39:39 srvubuntu uwsgi[157607]: *** WARNING: you are running uWSGI as root !!! (use the --uid flag) ***
+мар 18 09:39:39 srvubuntu uwsgi[157607]: *** uWSGI is running in multiple interpreter mode ***
+мар 18 09:39:39 srvubuntu uwsgi[157607]: spawned uWSGI worker 1 (and the only) (pid: 157607, cores: 1)
+мар 18 09:39:39 srvubuntu systemd[1]: Started Hello app.
+Проверяем в браузере:
+https://prnt.sc/8px2GEq4n4gY
+Все работает.
+Возвращаемся в домашнюю директорию и копируем ранее созданный hello.service в папку deploy/systemd/
+catware@srvubuntu:~/hello_world_devops$ ls -la deploy/systemd/
+total 12
+drwxrwxr-x 2 catware catware 4096 мар 18 09:51 .
+drwxrwxr-x 6 catware catware 4096 мар 18 07:46 ..
+-rw-r--r-- 1 catware catware  307 мар 18 09:51 hello.service
+В итоге сейчас все файлы проекта готовы к деплою на любом сервере, НО необходимо чтобы на сервере было:
+* установлен python3
+* установлен nginx
+* установлен uwsgi
+* чтобы файлы в репозитории для настройки были выложены в нужном виде
+Зафиксируем изменения в git:
+catware@srvubuntu:~/hello_world_devops$ git status
+On branch master
+Your branch is up to date with 'origin/master'.
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+        deploy/systemd/
+
+nothing added to commit but untracked files present (use "git add" to track)
+catware@srvubuntu:~/hello_world_devops$ git add deploy/*
+catware@srvubuntu:~/hello_world_devops$ git commit -m 'finished deploy'
+[master 40699eb] finished deploy
+ 1 file changed, 18 insertions(+)
+ create mode 100644 deploy/systemd/hello.service
+catware@srvubuntu:~/hello_world_devops$ git tag v2.0
+catware@srvubuntu:~/hello_world_devops$ git push origin master
+gEnumerating objects: 7, done.
+Counting objects: 100% (7/7), done.
+Delta compression using up to 2 threads
+Compressing objects: 100% (4/4), done.
+Writing objects: 100% (5/5), 665 bytes | 665.00 KiB/s, done.
+Total 5 (delta 1), reused 0 (delta 0)
+remote: Resolving deltas: 100% (1/1), completed with 1 local object.
+To https://github.com/summerinstockholm/hello_world_devops.git
+   f30b89e..40699eb  master -> master
+catware@srvubuntu:~/hello_world_devops$ git push origin v2.0
+Total 0 (delta 0), reused 0 (delta 0)
+To https://github.com/summerinstockholm/hello_world_devops.git
+ * [new tag]         v2.0 -> v2.0
+В репозитории на гитхаб появился новый релиз:
+https://prnt.sc/Ema_DYe3uPDJ
+В итоге все нужные артефакты к деплою подготовлены.
+Поскольку инфракод у нас часть репозитория, то изменения в инфракоде тоже двигают версию.
