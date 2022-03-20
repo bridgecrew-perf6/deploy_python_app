@@ -566,4 +566,52 @@ LXD должно быть доступно из сети? - нет
 Нужно ли обновлять автоматически образы операционных систем? - да
 Хочешь ли посмотреть свои настройки в виде YAML файла? - нет
 Выйдем из системы и зайдем заново, потому что пользователя catware добавили в группу lxd.
-Отредактируем profile
+Отредактируем profile (дефолтный конфиг с которым будут создаваться контейнера) для того чтобы добавить в него личный открытый ssh ключ минуя в дальнейшем ввод 
+логина и пароля
+catware@srvubuntu:~$ lxc profile edit default
+https://chrismacnaughton.com/blog/uncategorized/adding-ssh-authorized-keys-to-lxd-default-profile/
+config:
+  user.user-data: |
+    #cloud-config
+    ssh_authorized_keys:
+      - ssh-rsa "ваш публичный ssh ключ" catware
+Запускаем контейнер в котором хотим делать тесты:
+catware@srvubuntu:~$ lxc launch ubuntu
+Установится контейнер с последней версией убунту.
+Установим пакет software-properties-common и Ansible
+catware@srvubuntu:~$ sudo apt install -y software-properties-common
+catware@srvubuntu:~$ sudo apt install ansible
+Ansible установлен.
+Посмотрим список контейнеров:
+catware@srvubuntu:~$ lxc list
++---------------+---------+----------------------+-----------------------------------------------+-----------+-----------+
+|     NAME      |  STATE  |         IPV4         |                     IPV6                      |   TYPE    | SNAPSHOTS |
++---------------+---------+----------------------+-----------------------------------------------+-----------+-----------+
+| holy-bonefish | RUNNING | 10.146.218.68 (eth0) | fd42:4123:b051:de38:216:3eff:fe64:13cb (eth0) | CONTAINER | 0         |
++---------------+---------+----------------------+-----------------------------------------------+-----------+-----------+
+Переходим в директорию с проектом и создаем директорю ansible.
+catware@srvubuntu:~$ cd hello_world_devops
+catware@srvubuntu:~/hello_world_devops$ mkdir ansible
+catware@srvubuntu:~/hello_world_devops$ cd ansible
+Создать базовую структорию директорий откуда можно стартовать ansible.
+Создадим ansible.cfg и добавим следующие строки:
+catware@srvubuntu:~/hello_world_devops/ansible$ sudo nano ansible.cfg
+[default]
+inventory = hosts
+host_key_checking = False
+https://prnt.sc/mKmNERigwmTO
+inventory = hosts Список хостов которыми будем управлять будет лежать в файле hosts
+host_key_checking = False Прошу ansible не проверять ключи когда будем ходим по машинам.
+Далее создадим файл hosts в котором укажем ip адрес созданного ранее контейнера и дефолтным логином ubuntu.
+сatware@srvubuntu:~/hello_world_devops/ansible$ sudo nano hosts
+test ansible_host=10.146.218.68 ansible_user=ubuntu
+Выполним команду /bin/bash в созданном ранее контейнере:
+catware@srvubuntu:~$ lxc exec holy-bonefish /bin/bash
+root@holy-bonefish:~# lsb_release -a
+No LSB modules are available.
+Distributor ID: Ubuntu
+Description:    Ubuntu 20.04.4 LTS
+Release:        20.04
+Codename:       focal
+Выйдем из контейнера и вызовем модуль ansible - ping.
+
